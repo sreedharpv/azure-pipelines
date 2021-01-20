@@ -1,0 +1,80 @@
+# Docker
+# Build and push an image to Azure Container Registry
+# https://docs.microsoft.com/azure/devops/pipelines/languages/docker
+
+trigger:
+- master
+
+resources:
+- repo: self
+
+variables:
+  # Container registry service connection established during pipeline creation
+  dockerRegistryServiceConnection: '4e2b3256-5607-4fa9-8351-b1b3e2e7b0e2'
+  azureSubscriptionId: 'function-app-demo(2200aef7-f3b8-4e1f-b92d-4bc3722e37b0)'
+  imageRepository: 'pyfademo'
+  containerRegistry: 'facontainerregistry.azurecr.io'
+  dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile'
+  tag: '$(Build.BuildId)'
+  projectKey: 'py-fa-demo'
+  devFunctionAppContainer: 'func-app-container'
+  testFunctionAppContainer: 'test-func-app-container'
+  prodFuntionAppContainer: 'prod-func-app-container'
+  
+  # Agent VM image name
+  vmImageName: 'ubuntu-latest'
+# Sonar Queb Stage (Prepare, Analyz and Publish)
+stages:
+- stage: Sonar
+  displayName: Sonar
+  jobs:  
+  - job: Soanr 
+    displayName: Sonar Qube
+    pool:
+      vmImage: $(vmImageName)
+    steps:
+    - task: SonarQubePrepare@4
+      inputs:
+        SonarQube: 'SoanrQube'
+        scannerMode: 'CLI'
+        configMode: 'manual'
+        cliProjectKey: $(projectKey)
+        cliProjectName: $(projectKey)
+    - task: SonarQubeAnalyze@4
+    - task: SonarQubePublish@4
+      inputs:
+        pollingTimeoutSec: '300'
+
+  # Build the docker image and push to azure docker registry  
+- stage: DockerBuild
+  displayName: Docker Build and Push
+  jobs:  
+  - job: Build
+    displayName: Build
+    pool:
+      vmImage: $(vmImageName)
+    steps:
+    - task: Docker@2
+      displayName: Build and push an image to container registry
+      inputs:
+        command: buildAndPush
+        repository: $(imageRepository)
+        dockerfile: $(dockerfilePath)
+        containerRegistry: $(dockerRegistryServiceConnection)
+        tags: |
+          $(tag)
+# deploy stage (deploy the python container function app)
+#- stage: deploy
+  #displayName: deploy into azure function app
+  #jobs:  
+  #- job: deploy
+    #displayName: deploy
+    #pool:
+      #vmImage: $(vmImageName)
+    #steps:
+    #- task: AzureFunctionAppContainer@1
+      #displayName: Deploy
+      #inputs:
+        #azureSubscription: '$(azureSubscriptionId)'
+        #appName: '$(devFunctionApp)'
+        #imageName: '$(containerRegistry)/$(imageRepository):$(Build.BuildId)'
